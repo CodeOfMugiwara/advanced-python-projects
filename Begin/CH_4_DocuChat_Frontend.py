@@ -98,7 +98,7 @@ import time
 import os
 
 # Set page configuration for the Streamlit app
-st.set_page_config(page_title="Document Chat", page_icon="📕", layout="wide")
+st.set_page_config(page_title="DocuChat", page_icon="📃", layout="wide")
 
 # Initialize chat history and session variables
 if "messages" not in st.session_state:

@@ -1,10 +1,14 @@
+import uuid
+import uvicorn
+from typing import List
 from pydantic import BaseModel
 import pymongo
 # Import traceback for error handling
 import traceback
 
 # Import os and sys for system-related operations
-import os, sys
+import os
+import sys
 import traceback  # Import traceback for error handling
 from fastapi import (
     FastAPI,
@@ -12,13 +16,15 @@ from fastapi import (
     status,
     HTTPException,
 )  # Import FastAPI components for building the web application
-from fastapi.responses import JSONResponse  # Import JSONResponse for returning JSON responses
-from fastapi.middleware.cors import CORSMiddleware  # Import CORS middleware to handle Cross-Origin Resource Sharing
+# Import JSONResponse for returning JSON responses
+from fastapi.responses import JSONResponse
+# Import CORS middleware to handle Cross-Origin Resource Sharing
+from fastapi.middleware.cors import CORSMiddleware
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 # from langchain_community.document_loaders import S3FileLoader
-from langchain_community.document_loaders import Docx2txtLoader,PyPDFLoader
+from langchain_community.document_loaders import Docx2txtLoader, PyPDFLoader
 
 
 from langchain_community.callbacks import get_openai_callback
@@ -32,7 +38,7 @@ import awswrangler as wr  # Import AWS Wrangler for working with AWS services
 
 import boto3  # Import the boto3 library for interacting with AWS services
 
-# Import the OS module for system-related operations
+# Import the os module for system-related operations
 
 # Check if the operating system is Windows
 if os.name == "nt":  # Windows
@@ -51,16 +57,16 @@ if os.name == "nt":  # Windows
 # MONGO_URL = os.environ.get("MONGO_URL")  # MongoDB connection URL
 # S3_PATH = os.environ.get("S3_PATH")  # AWS S3 pathi
 
-os.environ['OPENAI_API_KEY']="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"
-S3_KEY=""
-S3_SECRET=""
-S3_BUCKET=""
-S3_REGION=""
-S3_PATH=""
+os.environ['OPENAI_API_KEY'] = "your openai api key"
+S3_KEY = "your s3 access key"
+S3_SECRET = "your s3 secret access key"
+S3_BUCKET = "your s3 bucket name"
+S3_REGION = "your s3 region"
+S3_PATH = "your s3 path"
 
 
 try:
-    MONGO_URL="mongodb+srv://admin:admin@cluster0.jyupp.mongodb.net/?retryWrites=true&w=majority&ssl=true"
+    MONGO_URL = "your mongodb connection url"
 
     # Connect to the MongoDB using the provided MONGO_URL
     client = pymongo.MongoClient(MONGO_URL, uuidRepresentation="standard")
@@ -81,9 +87,6 @@ except:
     print(exc_type, fname, exc_tb.tb_lineno)
 
 
-
-
-
 # Import the necessary modules and libraries
 
 
@@ -92,15 +95,16 @@ class ChatMessageSent(BaseModel):
     user_input: str
     data_source: str
 
+
 def get_response(
     file_name: str,
     session_id: str,
     query: str,
-    model: str = "gpt-3.5-turbo-16k",
+    model: str = "gpt-3.5-turbo-1106",
     temperature: float = 0,
 ):
     print("file name is ", file_name)
-    file_name=file_name.split("/")[-1]
+    file_name = file_name.split("/")[-1]
     """
     Generate a response using a conversational model.
 
@@ -128,7 +132,8 @@ def get_response(
     """
     embeddings = OpenAIEmbeddings()  # load embeddings
     # download file from s3
-    wr.s3.download(path=f"s3://docchat/documents/{file_name}",local_file=file_name,boto3_session=aws_s3)
+    wr.s3.download(
+        path=f"s3://documentchat/documents/{file_name}", local_file=file_name, boto3_session=aws_s3)
 
     # loader = S3FileLoader(
     #     bucket=S3_BUCKET,
@@ -137,22 +142,22 @@ def get_response(
     #     aws_secret_access_key=S3_SECRET,
     # )
     if file_name.endswith(".docx"):
-        loader=Docx2txtLoader(file_path=file_name.split("/")[-1])
+        loader = Docx2txtLoader(file_path=file_name.split("/")[-1])
     else:
         loader = PyPDFLoader(file_name)
 
-    # 1. load data
+    # 1.load data
     data = loader.load()
-    # 2. split data so it can fit GPT token limit
+    # 2.split data so it can fit gpt token limit
     print("splitting ..")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000, chunk_overlap=0, separators=["\n", " ", ""]
     )
 
     all_splits = text_splitter.split_documents(data)
-    # 3. store data in vector db to conduct search
+    # 3. store data in vector db to conduct searc
     vectorstore = FAISS.from_documents(all_splits, embeddings)
-    # 4. init OpenAI
+    # 4. Init openai
     llm = ChatOpenAI(model_name=model, temperature=temperature)
 
     # 5. pass the data to openai chain using vector db
@@ -177,8 +182,6 @@ def get_response(
         answer["total_tokens_used"] = cb.total_tokens
     gc.collect()  # collect garbage from memory
     return answer
-import uuid
-from typing import List
 
 
 def load_memory_to_pass(session_id: str):
@@ -195,14 +198,15 @@ def load_memory_to_pass(session_id: str):
     data = conversationcol.find_one(
         {"session_id": session_id}
     )  # find the document with the session id
-    history = []  # create empty array (in case we do not have any history)
+    history = []  # create empty array (incase we do not have any history)
     if data:  # check if data is not None
         data = data["conversation"]  # get the conversation field
 
         for x in range(0, len(data), 2):  # iterate over the field
             history.extend(
                 [(data[x], data[x + 1])]
-            )  # our history is expected format is [(human_message,ai_message)] , the even index has human message and odd has AI response
+                # our history is expected format is [(human_message,ai_message)] , the even index has human message and odd has ai response
+            )
     print(history)
     return history  # return history
 
@@ -245,7 +249,7 @@ def add_session_history(session_id: str, new_values: List):
             {
                 "session_id": session_id,
                 "conversation": new_values,
-            }  # to initiate a history under a new session, note we uses insert_one
+            }  # to initiate a history under a newsession, note we uses insert_one
         )
 
 
@@ -255,7 +259,8 @@ app = FastAPI()
 # Add CORS middleware to handle Cross-Origin Resource Sharing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow requests from any origin Ex, https://www.facebook.com
+    # Allow requests from any origin Ex, https://www.facebook.com
+    allow_origins=["*"],
     allow_credentials=False,  # Allow sending credentials (e.g., cookies)
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all HTTP headers
@@ -265,7 +270,7 @@ app.add_middleware(
 aws_s3 = boto3.Session(
     aws_access_key_id=S3_KEY,  # Set the AWS access key ID
     aws_secret_access_key=S3_SECRET,  # Set the AWS secret access key
-    region_name="us-east-2",  # Set the AWS region
+    region_name="ap-south-1",  # Set the AWS region
 )
 
 
@@ -352,7 +357,8 @@ async def create_chat_message(
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT, detail="error")
+        raise HTTPException(
+            status_code=status.HTTP_204_NO_CONTENT, detail="error")
 
 
 @app.post("/uploadFile")
@@ -380,7 +386,8 @@ async def uploadtos3(data_file: UploadFile):
             out_file.write(content)  # async write
         wr.s3.upload(
             local_file=data_file.filename,
-            path=f"s3://{S3_BUCKET}/{S3_PATH}{data_file.filename.split('/')[-1]}",
+            path=f"s3://{S3_BUCKET}/{S3_PATH}{
+                data_file.filename.split('/')[-1]}",
             boto3_session=aws_s3,
         )
         os.remove(data_file.filename)
@@ -395,6 +402,5 @@ async def uploadtos3(data_file: UploadFile):
     return JSONResponse(content=response)
 
 
-import uvicorn
-if __name__=="__main__":
+if __name__ == "__main__":
     uvicorn.run(app)
